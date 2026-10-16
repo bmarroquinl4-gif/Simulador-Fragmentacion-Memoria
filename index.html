@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Fragmentación de Memoria</title>
+<style>
+:root{--bg:#f3f6fb;--card:#fff;--ink:#172033;--muted:#5d687d;--blue:#2855a6;--blue2:#e7efff;--green:#23845b;--red:#bd3b48;--gold:#d48a18;--line:#dce3ef}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.5}
+header{background:linear-gradient(120deg,#17366e,#3477c8);color:white;padding:28px 18px}
+header .wrap,main{max-width:1100px;margin:auto}h1{margin:0 0 7px;font-size:clamp(1.6rem,4vw,2.35rem)}header p{margin:0;color:#e7efff}
+main{padding:22px 16px 44px}.layout{display:grid;grid-template-columns:310px 1fr;gap:18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 5px 18px #1720330b;margin-bottom:16px}
+h2{font-size:1.18rem;margin:0 0 12px}h3{font-size:1rem;margin:0 0 8px}
+label{display:block;font-weight:700;font-size:.9rem;margin:12px 0 5px}
+input,select,button{font:inherit}input,select{width:100%;padding:10px;border:1px solid #cbd5e4;border-radius:9px;background:white;color:var(--ink)}
+button{border:0;border-radius:9px;padding:10px 13px;background:var(--blue);color:white;font-weight:700;cursor:pointer;margin-top:10px}
+button.secondary{background:#e9eef7;color:#253550}button.danger{background:#fff0f0;color:#a52c38;border:1px solid #f0c5c8}
+button:hover{filter:brightness(.97)}.rowbtn{display:flex;gap:8px;flex-wrap:wrap}.rowbtn button{flex:1}
+.note{background:#f0f5ff;border-left:4px solid var(--blue);padding:11px 12px;border-radius:7px;color:#263d67;font-size:.92rem}
+.muted{color:var(--muted);font-size:.9rem}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{background:#f7f9fd;border:1px solid var(--line);border-radius:12px;padding:12px}.stat strong{display:block;font-size:1.35rem}.stat span{font-size:.8rem;color:var(--muted)}
+.memory{display:flex;min-height:190px;border:2px solid #7e8da8;border-radius:12px;overflow:hidden;background:#f8fafc}
+.segment{display:flex;align-items:center;justify-content:center;text-align:center;padding:8px 4px;min-width:0;border-right:2px solid white;font-size:.82rem;font-weight:700;overflow-wrap:anywhere}
+.allocated{background:#bcd3ff;color:#183c7a}.used{background:#77c99f;color:#104c31}.waste{background:#ffd98b;color:#704500}.free{background:repeating-linear-gradient(135deg,#f0f3f8,#f0f3f8 8px,#e1e7f0 8px,#e1e7f0 16px);color:#4e5c70}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0;font-size:.82rem}.dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{text-align:left;border-bottom:1px solid var(--line);padding:9px 6px}th{color:#526078;font-size:.8rem}
+.message{padding:12px;border-radius:9px;margin-top:12px;background:#f5f7fb}.good{background:#eaf8f0;color:#155c3a}.warn{background:#fff5e3;color:#80500a}
+.hidden{display:none}.concepts{display:grid;grid-template-columns:1fr 1fr;gap:12px}.concept{padding:14px;border:1px solid var(--line);border-radius:12px}.concept.internal{border-top:4px solid var(--gold)}.concept.external{border-top:4px solid var(--blue)}
+footer{text-align:center;color:var(--muted);font-size:.85rem;padding:12px}
+@media(max-width:780px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.concepts{grid-template-columns:1fr}.memory{min-height:160px}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Simulador de Fragmentación de Memoria</h1><p>Aprende cómo se asigna la memoria y por qué puede desperdiciarse espacio.</p></div></header>
+<main>
+<div class="layout">
+<section>
+<div class="card">
+<h2>Configuración</h2>
+<label for="mode">Tipo de fragmentación</label>
+<select id="mode"><option value="internal">Fragmentación interna (particiones fijas)</option><option value="external">Fragmentación externa (huecos libres)</option></select>
+<div id="internalControls">
+<label for="blockSize">Tamaño de cada partición (unidades)</label><input id="blockSize" type="number" min="10" max="500" value="100">
+<label for="blockCount">Cantidad de particiones</label><input id="blockCount" type="number" min="2" max="12" value="5">
+<p class="muted">Cada proceso ocupa una partición completa, aunque no use todo su espacio.</p>
+</div>
+<div id="externalControls" class="hidden">
+<label for="memorySize">Memoria total (unidades)</label><input id="memorySize" type="number" min="100" max="2000" value="600">
+<p class="muted">La memoria libre se representa como huecos. Puedes asignar y liberar procesos para observar cómo se separa el espacio libre.</p>
+</div>
+<div class="rowbtn"><button id="apply">Aplicar configuración</button><button id="reset" class="secondary">Reiniciar</button></div>
+</div>
+<div class="card">
+<h2>Agregar proceso</h2>
+<label for="processName">Nombre del proceso</label><input id="processName" maxlength="12" value="P1" placeholder="Ej. P1">
+<label for="processSize">Tamaño requerido (unidades)</label><input id="processSize" type="number" min="1" value="65">
+<button id="add" style="width:100%">Asignar proceso a memoria</button>
+<div id="feedback" class="message">Configura la memoria y agrega un proceso para comenzar.</div>
+</div>
+<div class="card">
+<h2>¿Qué debes observar?</h2>
+<ul class="muted">
+<li>La memoria usada por procesos.</li><li>El espacio desperdiciado dentro de una partición.</li><li>Los huecos libres y si son suficientes para una solicitud.</li>
+</ul>
+</div>
+</section>
+<section>
+<div class="card">
+<h2>Vista de la memoria</h2>
+<div class="stats">
+<div class="stat"><strong id="totalStat">500</strong><span>Memoria total</span></div>
+<div class="stat"><strong id="usedStat">0</strong><span>Memoria ocupada por procesos</span></div>
+<div class="stat"><strong id="wasteStat">0</strong><span id="wasteLabel">Fragmentación interna</span></div>
+</div>
+<div style="margin-top:18px"><div class="memory" id="memoryView" aria-label="Representación gráfica de la memoria"></div></div>
+<div class="legend"><span><i class="dot" style="background:#77c99f"></i>Memoria usada</span><span><i class="dot" style="background:#ffd98b"></i>Desperdicio interno</span><span><i class="dot" style="background:#e1e7f0"></i>Espacio libre</span><span><i class="dot" style="background:#bcd3ff"></i>Proceso asignado</span></div>
+<p class="muted" id="summary">La representación se actualizará al realizar asignaciones.</p>
+</div>
+<div class="card">
+<h2>Procesos y bloques</h2>
+<div style="overflow-x:auto"><table><thead><tr><th>Proceso / bloque</th><th>Requerido</th><th>Asignado</th><th>Desperdicio / estado</th><th>Acción</th></tr></thead><tbody id="processTable"></tbody></table></div>
+</div>
+<div class="card">
+<h2>Conceptos clave</h2>
+<div class="concepts">
+<div class="concept internal"><h3>Fragmentación interna</h3><p>Ocurre cuando un proceso recibe un bloque más grande que lo que necesita. La diferencia queda desperdiciada dentro del bloque asignado.</p><p><b>Ejemplo:</b> proceso de 65 unidades en una partición de 100: desperdicia 35 unidades.</p></div>
+<div class="concept external"><h3>Fragmentación externa</h3><p>Ocurre cuando la memoria libre se divide en huecos separados. Puede existir suficiente memoria libre total, pero no un hueco continuo suficientemente grande.</p><p><b>Ejemplo:</b> hay 120 unidades libres en varios huecos, pero un proceso necesita 90 y ningún hueco individual alcanza ese tamaño.</p></div>
+</div>
+<div id="explanation" class="note" style="margin-top:14px">Selecciona un modo y realiza asignaciones para ver una explicación específica.</div>
+</div>
+</section>
+</div>
+<footer>Simulador educativo · Las unidades son ficticias y se usan para explicar los conceptos.</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let mode='internal', blocks=[], nextId=1, total=500;
+function number(id,min,max){let v=Number($(id).value);if(!Number.isFinite(v))return min;return Math.max(min,Math.min(max,Math.floor(v)))}
+function setFeedback(msg,type=''){ $('feedback').className='message '+type; $('feedback').textContent=msg; }
+function configure(){
+ mode=$('mode').value; $('internalControls').classList.toggle('hidden',mode!=='internal'); $('externalControls').classList.toggle('hidden',mode!=='external');
+ resetMemory();
+}
+function resetMemory(){
+ nextId=1;
+ if(mode==='internal'){
+  const size=number('blockSize',10,500), count=number('blockCount',2,12); total=size*count;
+  blocks=Array.from({length:count},(_,i)=>({id:i+1,size,process:null}));
+ }else{
+  total=number('memorySize',100,2000); blocks=[{id:1,size:total,process:null}];
+ }
+ setFeedback('Memoria preparada. Ahora puedes agregar procesos.','good'); render();
+}
+function addProcess(){
+ const name=($('processName').value.trim()||('P'+nextId)).slice(0,12), size=number('processSize',1,2000);
+ if(mode==='internal'){
+  const b=blocks.find(x=>!x.process && x.size>=size);
+  if(!b){setFeedback('No hay una partición libre suficientemente grande para este proceso. Prueba con un tamaño menor o libera un bloque.','warn');return}
+  b.process={id:nextId++,name,size}; setFeedback(`${name} fue asignado a una partición de ${b.size} unidades. Desperdicio interno: ${b.size-size}.`,'good');
+ }else{
+  let index=blocks.findIndex(x=>!x.process && x.size>=size);
+  if(index<0){
+   const free=blocks.filter(x=>!x.process).reduce((s,x)=>s+x.size,0);
+   setFeedback(free>=size?`No existe un hueco continuo de ${size} unidades, aunque hay ${free} unidades libres en total. Esto ilustra la fragmentación externa.`:`No hay memoria suficiente: quedan ${free} unidades libres y el proceso requiere ${size}.`,'warn');return;
+  }
+  const b=blocks[index], remainder=b.size-size;
+  const used={id:nextId++,size,process:{id:nextId,name,size}};
+  const replacement=[used]; if(remainder>0)replacement.push({id:nextId++,size:remainder,process:null});
+  blocks.splice(index,1,...replacement); setFeedback(`${name} fue asignado. Quedan ${remainder} unidades contiguas en ese hueco.`,'good');
+ }
+ $('processName').value='P'+nextId; render();
+}
+function freeProcess(id){
+ if(mode==='internal'){const b=blocks.find(x=>x.process?.id===id);if(b)b.process=null;}
+ else{
+  const i=blocks.findIndex(x=>x.process?.id===id);if(i>=0){blocks[i].process=null;mergeFree();}
+ }
+ setFeedback('Proceso liberado. Observa cómo cambia la distribución de memoria.','good');render();
+}
+function mergeFree(){
+ for(let i=0;i<blocks.length-1;){if(!blocks[i].process&&!blocks[i+1].process){blocks[i].size+=blocks[i+1].size;blocks.splice(i+1,1)}else i++}
+}
+function render(){
+ $('totalStat').textContent=total;
+ let used=0,waste=0,free=0;
+ if(mode==='internal'){
+  blocks.forEach(b=>{if(b.process){used+=b.process.size;waste+=b.size-b.process.size}else free+=b.size});
+  $('wasteLabel').textContent='Fragmentación interna';
+ }else{
+  blocks.forEach(b=>{if(b.process)used+=b.size;else free+=b.size});
+  $('wasteLabel').textContent='Mayor hueco libre: '+Math.max(0,...blocks.filter(b=>!b.process).map(b=>b.size));
+  waste=free;
+ }
+ $('usedStat').textContent=used; $('wasteStat').textContent=mode==='internal'?waste:free+' libres';
+ $('memoryView').innerHTML='';
+ blocks.forEach((b,i)=>{
+  let div=document.createElement('div');div.className='segment '+(b.process?'allocated':'free');div.style.width=(b.size/total*100)+'%';div.style.flex='0 0 '+(b.size/total*100)+'%';
+  if(b.process && mode==='internal'){
+   const inner=document.createElement('div');inner.style.width='100%';inner.innerHTML=`<div>${b.process.name}</div><div style="font-weight:400">${b.process.size} usadas</div><div class="waste" style="margin-top:5px;border-radius:5px;padding:3px">${b.size-b.process.size} desperdicio</div>`;div.appendChild(inner);
+  }else div.textContent=b.process?`${b.process.name} · ${b.size}`:`Libre · ${b.size}`;
+  $('memoryView').appendChild(div);
+ });
+ const rows=[];
+ blocks.forEach(b=>{
+  if(b.process){const p=b.process;rows.push(`<tr><td>${escapeHtml(p.name)}${mode==='internal'?' (bloque '+b.id+')':''}</td><td>${p.size}</td><td>${mode==='internal'?b.size:p.size}</td><td>${mode==='internal'?b.size-p.size:'Asignado'}</td><td><button class="danger" onclick="freeProcess(${p.id})">Liberar</button></td></tr>`)}
+  else if(mode==='external')rows.push(`<tr><td>Hueco libre</td><td>—</td><td>${b.size}</td><td>Disponible</td><td>—</td></tr>`);
+  else rows.push(`<tr><td>Partición ${b.id}</td><td>—</td><td>${b.size}</td><td>Libre</td><td>—</td></tr>`);
+ });
+ $('processTable').innerHTML=rows.join('')||'<tr><td colspan="5">No hay procesos asignados.</td></tr>';
+ if(mode==='internal'){
+  $('summary').textContent=`${blocks.filter(b=>b.process).length} de ${blocks.length} particiones ocupadas. Memoria usada por procesos: ${used}; desperdicio interno: ${waste}; memoria libre en particiones: ${free}.`;
+  $('explanation').textContent=`En este modo, cada proceso ocupa una partición completa. La fragmentación interna acumulada es ${waste} unidades, que están dentro de particiones asignadas pero no son utilizadas por los procesos.`;
+ }else{
+  $('summary').textContent=`Memoria ocupada: ${used}; memoria libre total: ${free}; mayor hueco libre: ${Math.max(0,...blocks.filter(b=>!b.process).map(b=>b.size))}.`;
+  $('explanation').textContent=`En este modo, los huecos libres están representados por segmentos separados. La memoria libre total es ${free}, pero una solicitud solo puede entrar en un hueco continuo del tamaño necesario. Liberar procesos puede crear huecos; los huecos vecinos libres se combinan automáticamente.`;
+ }
+}
+function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('mode').addEventListener('change',()=>{mode=$('mode').value;$('internalControls').classList.toggle('hidden',mode!=='internal');$('externalControls').classList.toggle('hidden',mode!=='external');resetMemory()});
+$('apply').addEventListener('click',resetMemory);$('reset').addEventListener('click',resetMemory);$('add').addEventListener('click',addProcess);
+$('processSize').addEventListener('keydown',e=>{if(e.key==='Enter')addProcess()});
+configure();
+</script>
+</body></html>
